@@ -2,7 +2,11 @@ name: Compilar APK
 
 on:
   push:
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   apk:
@@ -16,7 +20,20 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Compilar
         run: chmod +x gradlew && ./gradlew assembleRelease
+      - name: Comprobar que el APK lleva el core y el frontend
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk EmuladorNeo.apk
+          unzip -l EmuladorNeo.apk | grep -E "lib/.*\.so"
+          unzip -l EmuladorNeo.apk | grep -q libfbneo_libretro_android.so
+          unzip -l EmuladorNeo.apk | grep -q libneoemu.so
       - uses: actions/upload-artifact@v4
         with:
           name: EmuladorNeo-apk
-          path: app/build/outputs/apk/release/*.apk
+          path: EmuladorNeo.apk
+      # Publica el APK como "release" para poder descargarlo directamente desde el móvil.
+      - name: Publicar descarga
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ultima --yes --cleanup-tag || true
+          gh release create ultima EmuladorNeo.apk --title "Emulador Neo (última versión)" --notes "APK compilado automáticamente desde ${GITHUB_SHA::7}." --target "$GITHUB_SHA"
